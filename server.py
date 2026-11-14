@@ -278,9 +278,29 @@ def tutor():
             )
 
         if not respuesta.ok:
-            raise RuntimeError(
-                f"La API respondió con el estado {respuesta.status_code}: "
-                f"{respuesta.text[:200]}"
+            detalle = respuesta.text[:300]
+            print(f"Error de la API ({respuesta.status_code}): {detalle}")
+
+            if respuesta.status_code in (401, 403):
+                return error(
+                    "La clave API_KEY no es válida o fue rechazada. "
+                    "Revisa que esté bien copiada en Render.",
+                    502,
+                )
+            if respuesta.status_code == 402:
+                return error("La cuenta de la API no tiene saldo suficiente.", 502)
+            if respuesta.status_code == 404:
+                return error(
+                    f"El modelo {MODELO} no está disponible. En OpenRouter, "
+                    "activa los modelos gratis en Settings → Privacy, o "
+                    "prueba otro modelo en la variable MODELO. "
+                    f"Detalle: {detalle[:150]}",
+                    502,
+                )
+            return error(
+                f"La API respondió con el estado {respuesta.status_code}. "
+                f"Detalle: {detalle[:150]}",
+                502,
             )
 
         opciones = respuesta.json().get("choices") or []
@@ -298,10 +318,10 @@ def tutor():
         return error("La respuesta tardó demasiado. Inténtalo nuevamente.", 500)
 
     except Exception as e:  # noqa: BLE001
-        print(f"Error en PAPOLTICA: {e}")
+        print(f"Error en PAPOLTICA: {type(e).__name__}: {e}")
         return error(
-            "No se pudo conectar con PAPOLTICA. Comprueba tu conexión, "
-            "tu clave API_KEY y el nombre del modelo.",
+            "No se pudo conectar con PAPOLTICA. "
+            f"Detalle técnico: {type(e).__name__}: {str(e)[:150]}",
             500,
         )
 
