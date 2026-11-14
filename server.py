@@ -18,7 +18,6 @@ from flask import Flask, jsonify, request, send_from_directory
 load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PUBLIC_DIR = os.path.join(BASE_DIR, "public")
 
 PORT = int(os.environ.get("PORT", 3000))
 # Por defecto usa Grok gratis a través de OpenRouter.
@@ -27,9 +26,12 @@ API_URL = os.environ.get("API_URL", "https://openrouter.ai/api/v1").rstrip("/")
 API_KEY = os.environ.get("API_KEY", "")
 MODELO = os.environ.get("MODELO", "x-ai/grok-4.1-fast:free")
 
-# Solo se publica la carpeta "public"; el código del servidor y el .env quedan fuera.
-app = Flask(__name__, static_folder=PUBLIC_DIR, static_url_path="")
+# No se publica la carpeta completa: solo estos tres archivos.
+# server.py y .env nunca se pueden descargar.
+app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024  # 100 KB
+
+ARCHIVOS_PUBLICOS = ("index.html", "app.js", "styles.css")
 
 
 # ======================================
@@ -39,7 +41,14 @@ app.config["MAX_CONTENT_LENGTH"] = 100 * 1024  # 100 KB
 @app.get("/")
 @app.get("/inicio")
 def pagina_principal():
-    return send_from_directory(PUBLIC_DIR, "index.html")
+    return send_from_directory(BASE_DIR, "index.html")
+
+
+@app.get("/<path:nombre>")
+def archivo_publico(nombre):
+    if nombre not in ARCHIVOS_PUBLICOS:
+        return error("No encontrado.", 404)
+    return send_from_directory(BASE_DIR, nombre)
 
 
 # ======================================
