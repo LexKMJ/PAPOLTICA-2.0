@@ -24,7 +24,7 @@ PORT = int(os.environ.get("PORT", 3000))
 # Para usar la API oficial de xAI: API_URL=https://api.x.ai/v1 y MODELO=grok-4.7
 API_URL = os.environ.get("API_URL", "https://openrouter.ai/api/v1").rstrip("/")
 API_KEY = os.environ.get("API_KEY", "")
-MODELO = os.environ.get("MODELO", "x-ai/grok-4.1-fast:free")
+MODELO = os.environ.get("MODELO", "x-ai/grok-4.3:free")
 
 # No se publica la carpeta completa: solo estos tres archivos.
 # server.py y .env nunca se pueden descargar.
