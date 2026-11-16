@@ -1,7 +1,7 @@
 """
 PAPOLTICA - Servidor (Python / Flask)
 
-Sirve la página web y conecta con Grok (gratis vía OpenRouter, o xAI).
+Sirve la página web y conecta con la API de OpenAI.
 Ejecutar:  python server.py
 """
 
@@ -20,11 +20,12 @@ load_dotenv()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 PORT = int(os.environ.get("PORT", 3000))
-# Por defecto usa Grok gratis a través de OpenRouter.
-# Para usar la API oficial de xAI: API_URL=https://api.x.ai/v1 y MODELO=grok-4.7
-API_URL = os.environ.get("API_URL", "https://openrouter.ai/api/v1").rstrip("/")
+# API de OpenAI (de pago). La clave se pone en la variable API_KEY.
+API_URL = os.environ.get("API_URL", "https://api.openai.com/v1").rstrip("/")
 API_KEY = os.environ.get("API_KEY", "")
-MODELO = os.environ.get("MODELO", "x-ai/grok-4.3:free")
+MODELO = os.environ.get("MODELO", "gpt-5-nano")
+# Razonamiento mínimo = más barato y rápido. Déjalo vacío para no enviarlo.
+RAZONAMIENTO = os.environ.get("RAZONAMIENTO", "minimal")
 
 # No se publica la carpeta completa: solo estos tres archivos.
 # server.py y .env nunca se pueden descargar.
@@ -246,7 +247,7 @@ def tutor():
             ],
         ]
 
-        # ----- Enviar a Grok -----
+        # ----- Enviar a OpenAI -----
 
         if not API_KEY:
             return error(
@@ -254,25 +255,33 @@ def tutor():
                 500,
             )
 
-        respuesta = requests.post(
-            f"{API_URL}/chat/completions",
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {API_KEY}",
-                "X-Title": "PAPOLTICA",
-            },
-            timeout=120,
-            json={
+        def llamar_api(con_razonamiento):
+            carga = {
                 "model": MODELO,
                 "messages": mensajes,
-                "temperature": 0.3,
-                "max_tokens": 1000,
-            },
-        )
+                "max_completion_tokens": 1500,
+            }
+            if con_razonamiento and RAZONAMIENTO:
+                carga["reasoning_effort"] = RAZONAMIENTO
+            return requests.post(
+                f"{API_URL}/chat/completions",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {API_KEY}",
+                },
+                timeout=120,
+                json=carga,
+            )
+
+        respuesta = llamar_api(True)
+
+        # Si el modelo no acepta "reasoning_effort", reintenta sin él.
+        if respuesta.status_code == 400 and "reasoning" in respuesta.text.lower():
+            respuesta = llamar_api(False)
 
         if respuesta.status_code == 429:
             return error(
-                "Se alcanzó el límite gratuito de uso. "
+                "Se alcanzó el límite de uso de la API. "
                 "Espera un momento e inténtalo de nuevo.",
                 429,
             )
@@ -288,12 +297,11 @@ def tutor():
                     502,
                 )
             if respuesta.status_code == 402:
-                return error("La cuenta de la API no tiene saldo suficiente.", 502)
+                return error("La cuenta de OpenAI no tiene saldo suficiente.", 502)
             if respuesta.status_code == 404:
                 return error(
-                    f"El modelo {MODELO} no está disponible. En OpenRouter, "
-                    "activa los modelos gratis en Settings → Privacy, o "
-                    "prueba otro modelo en la variable MODELO. "
+                    f"El modelo {MODELO} no está disponible en tu cuenta. "
+                    "Cambia la variable MODELO. "
                     f"Detalle: {detalle[:150]}",
                     502,
                 )
@@ -309,7 +317,7 @@ def tutor():
         )
 
         if not isinstance(contenido, str) or not contenido.strip():
-            raise RuntimeError("Grok no devolvió una respuesta válida.")
+            raise RuntimeError("El modelo no devolvió una respuesta válida.")
 
         return jsonify(respuesta=contenido, modo=modo, tema=tema)
 
